@@ -58,15 +58,13 @@ class RealCliAdapter(CliAdapter):  # pragma: no cover
         return self._get_panes_props('-t !')
 
     # TODO: there is too much logic here: extract into some testable code
-    def find_tmux_pane_with_running_process(self, command: str) -> Optional[PaneProps]:
-        session_panes_props = self._session_panes_props()
 
-        tty_list = [pane_props.pane_tty for pane_props in session_panes_props]
+    def find_tmux_pane_with_running_process(self, command: str) -> Optional[PaneProps]:
+        current_window_panes_props = self.current_tmux_window_panes_props()
+        tty_list = [pane_props.pane_tty for pane_props in current_window_panes_props]
 
         ps_output = shell(f"ps -o state= -o comm= -o tty= -t {','.join(tty_list)}").split('\n')
 
-        # sort lines in ps_output by `\d+$` match ascending
-        # (smallest tty first, as this corresponds to the pane with the smallest index)
         def tty_sort(line: str) -> str:
             m = re.search(r'\d+$', line)
             return m.group(0) if m else '9999999999'
@@ -79,10 +77,10 @@ class RealCliAdapter(CliAdapter):  # pragma: no cover
 
         if process_info:
             pane_tty = re.split(' +', process_info.rstrip())[-1]
-            return [
-                pane_props for pane_props in session_panes_props
+            return next((
+                pane_props for pane_props in current_window_panes_props
                 if pane_props.pane_tty == f'/dev/{pane_tty}'
-            ][0]
+            ), None)
 
     def select_tmux_window(self, id: str) -> None:
         os.system(f'tmux select-window -t {id}')
